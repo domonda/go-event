@@ -10,6 +10,7 @@ type Transformer interface {
 	TransformEvent(source interface{}) (result interface{}, useResult bool)
 	SourceEventType() reflect.Type
 	ResultEventType() reflect.Type
+	IsFilter() bool
 }
 
 func NewTransformer(transformFunc interface{}) Transformer {
@@ -49,4 +50,8 @@ func (t *transformer) SourceEventType() reflect.Type {
 
 func (t *transformer) ResultEventType() reflect.Type {
 	return t.funcVal.Type().Out(0)
+}
+
+func (t *transformer) IsFilter() bool {
+	return t.funcVal.Type().NumOut() == 2
 }

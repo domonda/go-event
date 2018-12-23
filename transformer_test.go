@@ -19,6 +19,7 @@ func TestNewTransformer(t *testing.T) {
 	})
 	assert.Equal(t, reflect.TypeOf(int(666)), transformer.SourceEventType())
 	assert.Equal(t, reflect.TypeOf(float64(666)), transformer.ResultEventType())
+	assert.False(t, transformer.IsFilter())
 
 	transformed, useResult = transformer.TransformEvent(int(666))
 	assert.True(t, useResult)
@@ -27,6 +28,10 @@ func TestNewTransformer(t *testing.T) {
 	transformer = NewTransformer(func(i int) (float64, bool) {
 		return float64(i), true
 	})
+	assert.Equal(t, reflect.TypeOf(int(666)), transformer.SourceEventType())
+	assert.Equal(t, reflect.TypeOf(float64(666)), transformer.ResultEventType())
+	assert.True(t, transformer.IsFilter())
+
 	transformed, useResult = transformer.TransformEvent(int(666))
 	assert.True(t, useResult)
 	assert.Exactly(t, float64(666), transformed)
