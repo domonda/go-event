@@ -12,7 +12,11 @@ func MewNopStream(subscribeTo ...Subscribable) *NopStream {
 }
 
 // Publish is a dummy.
-func (stream *NopStream) Publish(event interface{}) <-chan error {
+func (stream *NopStream) Publish(event interface{}) {
+}
+
+// PublishAwait is a dummy.
+func (stream *NopStream) PublishAsync(event interface{}) <-chan error {
 	errChan := make(chan error, 1)
 	errChan <- nil
 	return errChan

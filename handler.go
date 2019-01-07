@@ -32,8 +32,7 @@ func (f HandlerFuncNoError) HandleEvent(event interface{}) error {
 // HandleEvent method call.
 func RepublishHandler(publisher Publisher) Handler {
 	return HandlerFunc(func(event interface{}) error {
-		err := publisher.Publish(event)
-		return <-err
+		return publisher.PublishAwait(event)
 	})
 }
 

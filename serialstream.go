@@ -36,7 +36,11 @@ func NewSerialStream(subscribeTo ...Subscribable) *SerialStream {
 //
 // Use Stream instead if the events should be published
 // asynchronously in parallel Go routines.
-func (stream *SerialStream) Publish(event interface{}) <-chan error {
+func (stream *SerialStream) Publish(event interface{}) {
+	stream.PublishAwait(event)
+}
+
+func (stream *SerialStream) PublishAsync(event interface{}) <-chan error {
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- stream.PublishAwait(event)
