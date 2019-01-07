@@ -6,12 +6,12 @@ import (
 
 // SerialStream is an event stream that implements Publisher and Subscribable
 // for publishing events and subscribing to them.
-// Handler.HandleEvent method calls are done synchronously from Publish,
+// Handler.HandleEvent method calls are done synchronously,
 // meaning that Publish will only return after all event handlers have been called
 // in the order they have been subscribed.
 //
 // Use Stream instead if the events should be published
-// asynchronously in parallel Go routines.
+// in parallel Go routines.
 //
 // SerialStream is threadsafe.
 type SerialStream struct {
@@ -40,6 +40,13 @@ func (stream *SerialStream) Publish(event interface{}) {
 	stream.PublishAwait(event)
 }
 
+// PublishAsync publishes an event asynchronousely
+// using one or more go routines.
+// Exactly one error or nil will be written to
+// the returned channel when the event has been
+// handled by the subsribed handlers.
+// The error can be a combination of multiple
+// errors from multiple event handlers.
 func (stream *SerialStream) PublishAsync(event interface{}) <-chan error {
 	errChan := make(chan error, 1)
 	go func() {
@@ -48,6 +55,10 @@ func (stream *SerialStream) PublishAsync(event interface{}) <-chan error {
 	return errChan
 }
 
+// PublishAwait publishes an event and waits
+// for all handlers to return an error or nil.
+// The error can be a combination of multiple
+// errors from multiple event handlers.
 func (stream *SerialStream) PublishAwait(event interface{}) error {
 	stream.handlerMtx.RLock()
 	defer stream.handlerMtx.RUnlock()
