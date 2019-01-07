@@ -2,11 +2,9 @@ package event
 
 import (
 	"reflect"
-
-	"github.com/domonda/errors"
 )
 
-// SyncStream is an event stream that implements Publisher and Subscribable
+// SerialStream is an event stream that implements Publisher and Subscribable
 // for publishing events and subscribing to them.
 // Handler.HandleEvent method calls are done synchronously from Publish,
 // meaning that Publish will only return after all event handlers have been called
@@ -15,15 +13,15 @@ import (
 // Use Stream instead if the events should be published
 // asynchronously in parallel Go routines.
 //
-// SyncStream is threadsafe.
-type SyncStream struct {
+// SerialStream is threadsafe.
+type SerialStream struct {
 	subscribable
 }
 
-// NewSyncStream returns a new Stream with optional RepublishHandler
+// NewSerialStream returns a new Stream with optional RepublishHandler
 // subscriptions to the passed subscribeTo Subscribable implementations.
-func NewSyncStream(subscribeTo ...Subscribable) *SyncStream {
-	stream := new(SyncStream)
+func NewSerialStream(subscribeTo ...Subscribable) *SerialStream {
+	stream := new(SerialStream)
 	for _, source := range subscribeTo {
 		source.Subscribe(RepublishHandler(stream))
 	}
@@ -38,23 +36,30 @@ func NewSyncStream(subscribeTo ...Subscribable) *SyncStream {
 //
 // Use Stream instead if the events should be published
 // asynchronously in parallel Go routines.
-func (stream *SyncStream) Publish(event interface{}) <-chan error {
-	err := stream.PublishAwait(event)
+func (stream *SerialStream) Publish(event interface{}) <-chan error {
 	errChan := make(chan error, 1)
-	errChan <- err
+	go func() {
+		errChan <- stream.PublishAwait(event)
+	}()
 	return errChan
 }
 
-func (stream *SyncStream) PublishAwait(event interface{}) (err error) {
+func (stream *SerialStream) PublishAwait(event interface{}) error {
 	stream.handlerMtx.RLock()
 	defer stream.handlerMtx.RUnlock()
 
 	for _, handler := range stream.eventTypeHandlers[reflect.TypeOf(event)] {
-		err = errors.Combine(err, safelyHandleEvent(handler, event))
+		err := safelyHandleEvent(handler, event)
+		if err != nil {
+			return err
+		}
 	}
 	for _, handler := range stream.anyEventHandlers {
-		err = errors.Combine(err, safelyHandleEvent(handler, event))
+		err := safelyHandleEvent(handler, event)
+		if err != nil {
+			return err
+		}
 	}
 
-	return err
+	return nil
 }
