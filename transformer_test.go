@@ -1,6 +1,7 @@
 package event
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -12,6 +13,7 @@ func TestNewTransformer(t *testing.T) {
 		transformer Transformer
 		transformed interface{}
 		useResult   bool
+		err         error
 	)
 
 	transformer = NewTransformer(func(i int) float64 {
@@ -21,7 +23,8 @@ func TestNewTransformer(t *testing.T) {
 	assert.Equal(t, reflect.TypeOf(float64(666)), transformer.ResultEventType())
 	assert.False(t, transformer.IsFilter())
 
-	transformed, useResult = transformer.TransformEvent(int(666))
+	transformed, useResult, err = transformer.TransformEvent(int(666))
+	assert.NoError(t, err)
 	assert.True(t, useResult)
 	assert.Exactly(t, float64(666), transformed)
 
@@ -32,14 +35,16 @@ func TestNewTransformer(t *testing.T) {
 	assert.Equal(t, reflect.TypeOf(float64(666)), transformer.ResultEventType())
 	assert.True(t, transformer.IsFilter())
 
-	transformed, useResult = transformer.TransformEvent(int(666))
+	transformed, useResult, err = transformer.TransformEvent(int(666))
+	assert.NoError(t, err)
 	assert.True(t, useResult)
 	assert.Exactly(t, float64(666), transformed)
 
-	transformer = NewTransformer(func(i int) (float64, bool) {
-		return 0, false
+	transformer = NewTransformer(func(i int) (float64, bool, error) {
+		return 0, false, nil
 	})
-	transformed, useResult = transformer.TransformEvent(int(666))
+	transformed, useResult, err = transformer.TransformEvent(int(666))
+	assert.NoError(t, err)
 	assert.False(t, useResult)
 
 	invalidTransformerFuncs := []interface{}{
@@ -52,6 +57,7 @@ func TestNewTransformer(t *testing.T) {
 		func(int) {},
 		func(int) (r0, r1 int) { return },
 		func(int) (r0, r1 int, b bool) { return },
+		func(int) (r0 int, r1 error, r2 bool) { return },
 	}
 
 	for _, transformerFunc := range invalidTransformerFuncs {
@@ -59,4 +65,19 @@ func TestNewTransformer(t *testing.T) {
 			NewTransformer(transformerFunc)
 		})
 	}
+
+	transformer = NewTransformer(func(i int) (float64, bool, error) {
+		return 0, false, errors.New("resultError")
+	})
+	transformed, useResult, err = transformer.TransformEvent(int(666))
+	assert.EqualError(t, err, "resultError")
+	assert.False(t, useResult)
+
+	transformer = NewTransformer(func(i int) (int, bool, error) {
+		return -1, true, errors.New("resultError")
+	})
+	transformed, useResult, err = transformer.TransformEvent(int(666))
+	assert.EqualError(t, err, "resultError")
+	assert.True(t, useResult)
+	assert.Exactly(t, int(-1), transformed)
 }

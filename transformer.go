@@ -7,10 +7,12 @@ import (
 )
 
 type Transformer interface {
-	TransformEvent(source interface{}) (result interface{}, useResult bool)
+	TransformEvent(source interface{}) (result interface{}, useResult bool, err error)
+
 	SourceEventType() reflect.Type
 	ResultEventType() reflect.Type
 	IsFilter() bool
+	ReturnsError() bool
 }
 
 func NewTransformer(transformFunc interface{}) Transformer {
@@ -22,26 +24,63 @@ func NewTransformer(transformFunc interface{}) Transformer {
 	if funcType.NumIn() != 1 {
 		panic(errors.Errorf("transformer function must have 1 argument, but has %d", funcType.NumIn()))
 	}
-	if funcType.NumOut() != 1 && funcType.NumOut() != 2 {
-		panic(errors.Errorf("transformer function must have 1 or 2 return values, but has %d", funcType.NumOut()))
+
+	var (
+		useResultIndex int
+		errResultIndex int
+	)
+
+	switch funcType.NumOut() {
+	case 1:
+		// OK
+
+	case 2:
+		switch funcType.Out(1) {
+		case reflect.TypeOf(false):
+			useResultIndex = 1
+		case errors.Type:
+			errResultIndex = 1
+		default:
+			panic(errors.Errorf("transformer function's second return value type must be bool or error, but is %s", funcType.Out(1)))
+		}
+
+	case 3:
+		if funcType.Out(1) != reflect.TypeOf(false) {
+			panic(errors.Errorf("transformer function's second return value type must be bool, but is %s", funcType.Out(1)))
+		}
+		if funcType.Out(2) != errors.Type {
+			panic(errors.Errorf("transformer function's third return value type must be error, but is %s", funcType.Out(2)))
+		}
+		useResultIndex = 1
+		errResultIndex = 2
+
+	default:
+		panic(errors.Errorf("transformer function must have 1 to 3 return values, but has %d", funcType.NumOut()))
 	}
-	if funcType.NumOut() == 2 && funcType.Out(1) != reflect.TypeOf(false) {
-		panic(errors.Errorf("transformer function's second return value type must be bool, but is %T", funcType.Out(1)))
-	}
-	return &transformer{funcVal}
+
+	return &transformer{funcVal: funcVal, useResultIndex: useResultIndex, errResultIndex: errResultIndex}
 }
 
 type transformer struct {
-	funcVal reflect.Value
+	funcVal        reflect.Value
+	useResultIndex int
+	errResultIndex int
 }
 
-func (t *transformer) TransformEvent(source interface{}) (result interface{}, useResult bool) {
+func (t *transformer) TransformEvent(source interface{}) (result interface{}, useResult bool, err error) {
 	results := t.funcVal.Call([]reflect.Value{reflect.ValueOf(source)})
-	useResult = true
-	if len(results) == 2 {
-		useResult = results[1].Bool()
+
+	result = results[0].Interface()
+	if t.IsFilter() {
+		useResult = results[t.useResultIndex].Bool()
+	} else {
+		useResult = true
 	}
-	return results[0].Interface(), useResult
+	if t.ReturnsError() {
+		err, _ = results[t.errResultIndex].Interface().(error)
+	}
+
+	return result, useResult, err
 }
 
 func (t *transformer) SourceEventType() reflect.Type {
@@ -53,5 +92,9 @@ func (t *transformer) ResultEventType() reflect.Type {
 }
 
 func (t *transformer) IsFilter() bool {
-	return t.funcVal.Type().NumOut() == 2
+	return t.useResultIndex > 0
+}
+
+func (t *transformer) ReturnsError() bool {
+	return t.errResultIndex > 0
 }

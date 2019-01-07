@@ -1,6 +1,10 @@
 package event
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/domonda/errors"
+)
 
 // SyncStream is an event stream that implements Publisher and Subscribable
 // for publishing events and subscribing to them.
@@ -34,14 +38,23 @@ func NewSyncStream(subscribeTo ...Subscribable) *SyncStream {
 //
 // Use Stream instead if the events should be published
 // asynchronously in parallel Go routines.
-func (stream *SyncStream) Publish(event interface{}) {
+func (stream *SyncStream) Publish(event interface{}) <-chan error {
+	err := stream.PublishAwait(event)
+	errChan := make(chan error, 1)
+	errChan <- err
+	return errChan
+}
+
+func (stream *SyncStream) PublishAwait(event interface{}) (err error) {
 	stream.handlerMtx.RLock()
 	defer stream.handlerMtx.RUnlock()
 
 	for _, handler := range stream.eventTypeHandlers[reflect.TypeOf(event)] {
-		safelyHandleEvent(handler, event)
+		err = errors.Combine(err, safelyHandleEvent(handler, event))
 	}
 	for _, handler := range stream.anyEventHandlers {
-		safelyHandleEvent(handler, event)
+		err = errors.Combine(err, safelyHandleEvent(handler, event))
 	}
+
+	return err
 }

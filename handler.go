@@ -11,47 +11,54 @@ import (
 // Handler has a method to handle an event of type interface{}
 type Handler interface {
 	// HandleEvent handles an event
-	HandleEvent(event interface{})
+	HandleEvent(event interface{}) error
 }
 
 // HandlerFunc implements Handler for a function pointer
-type HandlerFunc func(event interface{})
+type HandlerFunc func(event interface{}) error
 
-func (f HandlerFunc) HandleEvent(event interface{}) { f(event) }
+func (f HandlerFunc) HandleEvent(event interface{}) error { return f(event) }
+
+// HandlerFuncNoError implements Handler for a function pointer
+type HandlerFuncNoError func(event interface{})
+
+func (f HandlerFuncNoError) HandleEvent(event interface{}) error {
+	f(event)
+	return nil
+}
 
 // RepublishHandler wraps a Publisher as a Handler
 // by calling publisher.Publish(event) in every
 // HandleEvent method call.
 func RepublishHandler(publisher Publisher) Handler {
-	return HandlerFunc(func(event interface{}) {
-		publisher.Publish(event)
+	return HandlerFunc(func(event interface{}) error {
+		err := publisher.Publish(event)
+		return <-err
 	})
 }
 
 // ChanHandler wraps a channel as an event Handler.
 // HandleEvent calls will write the passed events to the channel.
 func ChanHandler(handlerChan chan<- interface{}) Handler {
-	return HandlerFunc(func(event interface{}) {
+	return HandlerFunc(func(event interface{}) error {
 		handlerChan <- event
+		return nil
 	})
 }
 
 // WriteJSONHandler returns a Handler that pretty prints
 // every event as JSON followed by a newline to writer.
-// Errors from encoding and writing create a panic.
 func WriteJSONHandler(writer io.Writer) Handler {
 	encoder := json.NewEncoder(writer)
 	encoder.SetIndent("", "  ")
 
-	return HandlerFunc(func(event interface{}) {
+	return HandlerFunc(func(event interface{}) error {
 		err := encoder.Encode(event)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		_, err = writer.Write([]byte{'\n'})
-		if err != nil {
-			panic(err)
-		}
+		return err
 	})
 }
 
@@ -65,18 +72,28 @@ func TypeHandler(handlerFuncOrChan interface{}) (eventType reflect.Type, handler
 		if handlerType.NumIn() != 1 {
 			panic(errors.Errorf("event handler function must have 1 argument, but has %d", handlerType.NumIn()))
 		}
-		if handlerType.NumOut() > 0 {
-			panic(errors.Errorf("event handler function must not have results, but has %d", handlerType.NumOut()))
+		if handlerType.NumOut() > 1 {
+			panic(errors.Errorf("event handler function must not have more than one error result, but has %d", handlerType.NumOut()))
+		}
+		if handlerType.NumOut() == 1 && handlerType.Out(0) != errors.Type {
+			panic(errors.Errorf("event handler function must return an error, but returns %s", handlerType.Out(0)))
 		}
 		eventType = handlerType.In(0)
-		handler = HandlerFunc(func(event interface{}) {
-			handlerVal.Call([]reflect.Value{reflect.ValueOf(event)})
+		returnsError := handlerType.NumOut() == 1
+		handler = HandlerFunc(func(event interface{}) error {
+			results := handlerVal.Call([]reflect.Value{reflect.ValueOf(event)})
+			if !returnsError {
+				return nil
+			}
+			err, _ := results[0].Interface().(error)
+			return err
 		})
 
 	case reflect.Chan:
 		eventType = handlerType.Elem()
-		handler = HandlerFunc(func(event interface{}) {
+		handler = HandlerFunc(func(event interface{}) error {
 			handlerVal.Send(reflect.ValueOf(event))
+			return nil
 		})
 
 	default:

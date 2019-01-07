@@ -44,11 +44,12 @@ func Subscription(eventSource Subscribable, transformFunc interface{}) Subscriba
 		}
 
 		eventSource.Subscribe(
-			HandlerFunc(func(event interface{}) {
-				transformed, ok := transformer.TransformEvent(event)
-				if ok {
-					handler.HandleEvent(transformed)
+			HandlerFunc(func(event interface{}) error {
+				transformed, useResult, err := transformer.TransformEvent(event)
+				if !useResult || err != nil {
+					return err
 				}
+				return handler.HandleEvent(transformed)
 			}),
 			transformer.SourceEventType(),
 		)
@@ -116,8 +117,11 @@ func (s *subscribable) SubscribeReflect(eventHandler interface{}) {
 	case Publisher:
 		s.Subscribe(RepublishHandler(x))
 
-	case func(interface{}):
+	case func(interface{}) error:
 		s.Subscribe(HandlerFunc(x))
+
+	case func(interface{}):
+		s.Subscribe(HandlerFuncNoError(x))
 
 	case chan interface{}:
 		s.Subscribe(ChanHandler(x))

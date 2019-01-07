@@ -2,8 +2,10 @@ package event
 
 import (
 	"reflect"
+	"sync"
 
 	"github.com/domonda/Domonda/pkg/wrap"
+	"github.com/domonda/errors"
 )
 
 // Stream is an event stream that implements Publisher and Subscribable
@@ -33,19 +35,42 @@ func NewStream(subscribeTo ...Subscribable) *Stream {
 // meaning that event handling will be run unordered and in parallel.
 //
 // Use SyncStream if synchronous, ordered handling of events is needed.
-func (stream *Stream) Publish(event interface{}) {
+func (stream *Stream) Publish(event interface{}) <-chan error {
 	stream.handlerMtx.RLock()
 	defer stream.handlerMtx.RUnlock()
 
-	for _, handler := range stream.eventTypeHandlers[reflect.TypeOf(event)] {
-		go safelyHandleEvent(handler, event)
+	typeHandlers := stream.eventTypeHandlers[reflect.TypeOf(event)]
+
+	var errs errors.Collection
+	var wg sync.WaitGroup
+	wg.Add(len(typeHandlers) + len(stream.anyEventHandlers))
+
+	handleEventAsync := func(handler Handler, event interface{}) {
+		errs.Add(safelyHandleEvent(handler, event))
+		wg.Done()
+	}
+
+	for _, handler := range typeHandlers {
+		go handleEventAsync(handler, event)
 	}
 	for _, handler := range stream.anyEventHandlers {
-		go safelyHandleEvent(handler, event)
+		go handleEventAsync(handler, event)
 	}
+
+	errChan := make(chan error, 1)
+	go func() {
+		wg.Wait()
+		errChan <- errs.Combine()
+	}()
+
+	return errChan
 }
 
-func safelyHandleEvent(handler Handler, event interface{}) {
-	defer wrap.RecoverAndLogPanic("safelyHandleEvent")
-	handler.HandleEvent(event)
+func (stream *Stream) PublishAwait(event interface{}) (err error) {
+	return <-stream.Publish(event)
+}
+
+func safelyHandleEvent(handler Handler, event interface{}) (err error) {
+	defer wrap.RecoverPanicAsResultError(&err, "safelyHandleEvent")
+	return handler.HandleEvent(event)
 }
