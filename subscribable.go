@@ -26,21 +26,11 @@ func Subscription(eventSource Subscribable, transformFunc interface{}) Subscriba
 	transformer := NewTransformer(transformFunc)
 
 	return SubscribableFunc(func(handler Handler, eventTypes ...reflect.Type) {
-		if len(eventTypes) > 0 {
-			// When subscribing only for certain eventTypes,
-			// then check if the transformer returns one of those types,
-			// else return without subscribing
-			resultEventType := transformer.ResultEventType()
-			transformerReturnsSubscribedType := false
-			for _, eventType := range eventTypes {
-				if eventType == resultEventType {
-					transformerReturnsSubscribedType = true
-					break
-				}
-			}
-			if !transformerReturnsSubscribedType {
-				return
-			}
+		// When subscribing only for certain eventTypes,
+		// then check if the transformer returns one of those types,
+		// if not, return without subscribing
+		if len(eventTypes) > 0 && !containsType(eventTypes, transformer.ResultEventType()) {
+			return
 		}
 
 		eventSource.Subscribe(
@@ -54,6 +44,15 @@ func Subscription(eventSource Subscribable, transformFunc interface{}) Subscriba
 			transformer.SourceEventType(),
 		)
 	})
+}
+
+func containsType(types []reflect.Type, searched reflect.Type) bool {
+	for _, t := range types {
+		if t == searched {
+			return true
+		}
+	}
+	return false
 }
 
 // subscribable is the internal basis implementation

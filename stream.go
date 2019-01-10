@@ -61,9 +61,8 @@ func (stream *Stream) PublishAsync(event interface{}) <-chan error {
 	defer stream.handlerMtx.RUnlock()
 
 	typeHandlers := stream.eventTypeHandlers[reflect.TypeOf(event)]
-
-	var errs errors.Collection
-	var wg sync.WaitGroup
+	errs := new(errors.Collection)
+	wg := new(sync.WaitGroup)
 	wg.Add(len(typeHandlers) + len(stream.anyEventHandlers))
 
 	handleEventAsync := func(handler Handler, event interface{}) {
