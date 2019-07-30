@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/domonda/Domonda/pkg/wrap"
 	"github.com/domonda/errors"
+	"github.com/domonda/errors/wrap"
 )
 
 // Stream is an event stream that implements Publisher and Subscribable
