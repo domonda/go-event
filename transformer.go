@@ -1,9 +1,8 @@
 package event
 
 import (
+	"fmt"
 	"reflect"
-
-	"github.com/domonda/errors"
 )
 
 type Transformer interface {
@@ -19,10 +18,10 @@ func NewTransformer(transformFunc interface{}) Transformer {
 	funcVal := reflect.ValueOf(transformFunc)
 	funcType := funcVal.Type()
 	if funcType.Kind() != reflect.Func {
-		panic(errors.Errorf("transformer must be a function, but is %s", funcType))
+		panic(fmt.Errorf("transformer must be a function, but is %s", funcType))
 	}
 	if funcType.NumIn() != 1 {
-		panic(errors.Errorf("transformer function must have 1 argument, but has %d", funcType.NumIn()))
+		panic(fmt.Errorf("transformer function must have 1 argument, but has %d", funcType.NumIn()))
 	}
 
 	var (
@@ -38,24 +37,24 @@ func NewTransformer(transformFunc interface{}) Transformer {
 		switch funcType.Out(1) {
 		case reflect.TypeOf(false):
 			useResultIndex = 1
-		case errors.Type:
+		case typeOfError:
 			errResultIndex = 1
 		default:
-			panic(errors.Errorf("transformer function's second return value type must be bool or error, but is %s", funcType.Out(1)))
+			panic(fmt.Errorf("transformer function's second return value type must be bool or error, but is %s", funcType.Out(1)))
 		}
 
 	case 3:
 		if funcType.Out(1) != reflect.TypeOf(false) {
-			panic(errors.Errorf("transformer function's second return value type must be bool, but is %s", funcType.Out(1)))
+			panic(fmt.Errorf("transformer function's second return value type must be bool, but is %s", funcType.Out(1)))
 		}
-		if funcType.Out(2) != errors.Type {
-			panic(errors.Errorf("transformer function's third return value type must be error, but is %s", funcType.Out(2)))
+		if funcType.Out(2) != typeOfError {
+			panic(fmt.Errorf("transformer function's third return value type must be error, but is %s", funcType.Out(2)))
 		}
 		useResultIndex = 1
 		errResultIndex = 2
 
 	default:
-		panic(errors.Errorf("transformer function must have 1 to 3 return values, but has %d", funcType.NumOut()))
+		panic(fmt.Errorf("transformer function must have 1 to 3 return values, but has %d", funcType.NumOut()))
 	}
 
 	return &transformer{funcVal: funcVal, useResultIndex: useResultIndex, errResultIndex: errResultIndex}

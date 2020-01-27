@@ -2,11 +2,12 @@ package event
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
-
-	"github.com/domonda/errors"
 )
+
+var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
 // Handler has a method to handle an event of type interface{}
 type Handler interface {
@@ -69,13 +70,13 @@ func TypeHandler(handlerFuncOrChan interface{}) (eventType reflect.Type, handler
 	switch handlerType.Kind() {
 	case reflect.Func:
 		if handlerType.NumIn() != 1 {
-			panic(errors.Errorf("event handler function must have 1 argument, but has %d", handlerType.NumIn()))
+			panic(fmt.Errorf("event handler function must have 1 argument, but has %d", handlerType.NumIn()))
 		}
 		if handlerType.NumOut() > 1 {
-			panic(errors.Errorf("event handler function must not have more than one error result, but has %d", handlerType.NumOut()))
+			panic(fmt.Errorf("event handler function must not have more than one error result, but has %d", handlerType.NumOut()))
 		}
-		if handlerType.NumOut() == 1 && handlerType.Out(0) != errors.Type {
-			panic(errors.Errorf("event handler function must return an error, but returns %s", handlerType.Out(0)))
+		if handlerType.NumOut() == 1 && handlerType.Out(0) != typeOfError {
+			panic(fmt.Errorf("event handler function must return an error, but returns %s", handlerType.Out(0)))
 		}
 		eventType = handlerType.In(0)
 		returnsError := handlerType.NumOut() == 1
@@ -96,7 +97,7 @@ func TypeHandler(handlerFuncOrChan interface{}) (eventType reflect.Type, handler
 		})
 
 	default:
-		panic(errors.Errorf("event handler is not a function or channel but '%T'", handlerFuncOrChan))
+		panic(fmt.Errorf("event handler is not a function or channel but '%T'", handlerFuncOrChan))
 	}
 
 	return eventType, handler
