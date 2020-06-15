@@ -76,7 +76,7 @@ func (s *subscribable) Subscribe(handler Handler, eventTypes ...reflect.Type) {
 		for _, eventType := range eventTypes {
 			if s.eventTypeHandlers == nil {
 				s.eventTypeHandlers = map[reflect.Type][]Handler{
-					eventType: []Handler{handler},
+					eventType: {handler},
 				}
 			} else {
 				s.eventTypeHandlers[eventType] = append(s.eventTypeHandlers[eventType], handler)

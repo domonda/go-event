@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/domonda/errors"
-	"github.com/domonda/errors/wrap"
+	"github.com/domonda/go-errs"
 )
 
 // Stream is an event stream that implements Publisher and Subscribable
@@ -96,6 +96,7 @@ func (stream *Stream) PublishAwait(event interface{}) error {
 }
 
 func safelyHandleEvent(handler Handler, event interface{}) (err error) {
-	defer wrap.RecoverPanicAsResultError(&err, "safelyHandleEvent")
+	defer errs.RecoverPanicAsErrorWithFuncParams(&err, handler, event)
+
 	return handler.HandleEvent(event)
 }
