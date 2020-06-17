@@ -1,5 +1,12 @@
 package event
 
+import (
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
+)
+
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 
 // asError converts val to an error without wrapping it.
