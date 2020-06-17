@@ -7,8 +7,6 @@ import (
 	"reflect"
 )
 
-var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
-
 // Handler has a method to handle an event of type interface{}
 type Handler interface {
 	// HandleEvent handles an event

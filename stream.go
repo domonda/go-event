@@ -3,9 +3,6 @@ package event
 import (
 	"reflect"
 	"sync"
-
-	"github.com/domonda/errors"
-	"github.com/domonda/go-errs"
 )
 
 // Stream is an event stream that implements Publisher and Subscribable
@@ -61,13 +58,20 @@ func (stream *Stream) PublishAsync(event interface{}) <-chan error {
 	defer stream.handlerMtx.RUnlock()
 
 	typeHandlers := stream.eventTypeHandlers[reflect.TypeOf(event)]
-	errs := new(errors.Collection)
-	wg := new(sync.WaitGroup)
+	var (
+		errs    []error
+		errsMtx sync.Mutex
+		wg      sync.WaitGroup
+	)
 	wg.Add(len(typeHandlers) + len(stream.anyEventHandlers))
 
 	handleEventAsync := func(handler Handler, event interface{}) {
 		err := safelyHandleEvent(handler, event)
-		errs.Add(err)
+		if err != nil {
+			errsMtx.Lock()
+			errs = append(errs, err)
+			errsMtx.Unlock()
+		}
 		wg.Done()
 	}
 
@@ -81,7 +85,7 @@ func (stream *Stream) PublishAsync(event interface{}) <-chan error {
 	errChan := make(chan error, 1)
 	go func() {
 		wg.Wait()
-		errChan <- errs.Combine()
+		errChan <- combineErrors(errs)
 	}()
 
 	return errChan
@@ -96,7 +100,11 @@ func (stream *Stream) PublishAwait(event interface{}) error {
 }
 
 func safelyHandleEvent(handler Handler, event interface{}) (err error) {
-	defer errs.RecoverPanicAsErrorWithFuncParams(&err, handler, event)
+	defer func() {
+		if r := recover(); r != nil {
+			err = asError(r)
+		}
+	}()
 
 	return handler.HandleEvent(event)
 }
