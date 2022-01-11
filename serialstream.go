@@ -36,8 +36,8 @@ func NewSerialStream(subscribeTo ...Subscribable) *SerialStream {
 //
 // Use Stream instead if the events should be published
 // asynchronously in parallel Go routines.
-func (stream *SerialStream) Publish(event interface{}) {
-	stream.PublishAwait(event)
+func (stream *SerialStream) Publish(event interface{}) error {
+	return stream.PublishAwait(event)
 }
 
 // PublishAsync publishes an event asynchronousely

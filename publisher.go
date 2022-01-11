@@ -3,7 +3,7 @@ package event
 // Publisher has methods for publishing events
 type Publisher interface {
 	// Publish an event without waiting for a result.
-	Publish(event interface{})
+	Publish(event interface{}) error
 
 	// PublishAsync publishes an event asynchronousely
 	// using one or more go routines.

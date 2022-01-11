@@ -32,7 +32,7 @@ func NewStream(subscribeTo ...Subscribable) *Stream {
 // meaning that event handling will be run unordered and in parallel.
 //
 // Use SyncStream if synchronous, ordered handling of events is needed.
-func (stream *Stream) Publish(event interface{}) {
+func (stream *Stream) Publish(event interface{}) error {
 	stream.handlerMtx.RLock()
 	defer stream.handlerMtx.RUnlock()
 
@@ -44,6 +44,7 @@ func (stream *Stream) Publish(event interface{}) {
 	for _, handler := range stream.anyEventHandlers {
 		go safelyHandleEvent(handler, event)
 	}
+	return nil
 }
 
 // PublishAsync publishes an event asynchronousely

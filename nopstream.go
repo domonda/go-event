@@ -12,7 +12,8 @@ func MewNopStream(subscribeTo ...Subscribable) *NopStream {
 }
 
 // Publish is a dummy.
-func (stream *NopStream) Publish(event interface{}) {
+func (stream *NopStream) Publish(event interface{}) error {
+	return nil
 }
 
 // PublishAwait is a dummy.
